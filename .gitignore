@@ -1,0 +1,18 @@
+# SPDX-FileCopyrightText: 2025 Stefano Miccoli <stefano.miccoli@polimi.it>
+#
+# SPDX-License-Identifier: CC0-1.0
+
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# other
+.python-version
+uv.lock
