@@ -4,7 +4,7 @@ SPDX-FileCopyrightText: 2025 Stefano Miccoli <stefano.miccoli@polimi.it>
 SPDX-License-Identifier: MIT
 -->
 
-# `suan-pan` package
+# `suanpan-abaqus` package
 
 Python interface to Abaqus `.fil` files
 
