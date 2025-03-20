@@ -1,3 +1,10 @@
+# SPDX-FileCopyrightText: Copyright (c) 2020 GitHub
+#
+# SPDX-License-Identifier: MIT
+
+# original version of this file:
+# https://raw.githubusercontent.com/actions/starter-workflows/00795b7feebceed43fe2510ccb976238441d9c07/ci/python-publish.yml
+
 # This workflow will upload a Python Package to PyPI when a release is created
 # For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-python#publishing-to-package-registries
 
