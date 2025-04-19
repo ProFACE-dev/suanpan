@@ -4,7 +4,7 @@
 
 """Python interface to Abaqus .fil files"""
 
-__version__ = "0.1.0"
+from ._version import __version__
 
 
 MAX_ABAQUS_UNSIGNED = 999_999_999

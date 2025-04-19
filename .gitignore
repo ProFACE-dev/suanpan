@@ -10,6 +10,9 @@ dist/
 wheels/
 *.egg-info
 
+# hatch-vcs generated files
+src/suanpan/_version.py
+
 # Virtual environments
 .venv
 
