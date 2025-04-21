@@ -23,9 +23,24 @@ dependencies = ["numpy>=1.21.3"]
 license = "MIT"
 license-files = ["LICENCES/MIT.txt"]
 
+[project.scripts]
+fil2h5 = "suanpan.cli.fil2h5:main"
+
+[project.optional-dependencies]
+cli = [
+    "click>=8.1.8",
+    "h5py>=3.13.0",
+]
+
 [build-system]
 requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
+
+
+[dependency-groups]
+dev = [
+    "mypy>=1.15.0",
+]
 
 #
 # hatch
@@ -50,3 +65,10 @@ target-version = "py310"
 [tool.ruff.lint]
 select = ["TRY"]
 ignore = []
+
+#
+# mypy
+#
+[[tool.mypy.overrides]]
+module = ["h5py.*"]
+ignore_missing_imports = true
