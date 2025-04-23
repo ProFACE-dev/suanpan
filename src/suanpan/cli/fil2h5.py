@@ -2,6 +2,12 @@
 #
 # SPDX-License-Identifier: MIT
 
+"""
+Entry point for 'fil2h5'
+"""
+
+__all__ = ["main"]
+
 import json
 import sys
 from pathlib import Path
