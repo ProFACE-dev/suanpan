@@ -34,6 +34,7 @@ def main(files: tuple[Path, ...]) -> None:
                 _add_nodes(h5, abq)
                 _add_sets(h5, abq, labels)
                 _add_surfaces(h5, abq, labels)
+                _add_steps(h5, abq)
                 click.echo(h5.filename)
         except OSError as exc:
             click.echo(f"{pth}: conversion failed: {exc}", file=sys.stderr)
@@ -99,6 +100,35 @@ def _add_surfaces(h5, abq, labels):
             grp.create_dataset(name=f"{i}/nodes", data=fb["nodes"])
 
 
+def _add_steps(h5, abq):
+    for i, h in enumerate(abq.step):
+        inc = h5.create_group(name=f"results/inc{i:03d}")
+        inc.attrs.update(_struct_scalar_to_dict(h))
+        for j, k in enumerate(abq.get_step(i)):
+            out = inc.create_group(name=f"req{j:03d}")
+            out.attrs["type"] = k.flag
+            out.attrs["set"] = AbqFil.b2str(k.set)
+            out.attrs["eltype"] = AbqFil.b2str(k.eltype)
+
+            if k.flag == 0:
+                singleton = ["loc", "rebarname", "ndi", "nshr", "ndir", "nsfc"]
+                assert np.all(k.data[singleton] == k.data[singleton][0])
+                out.attrs.update(_struct_scalar_to_dict(k.data[singleton][0]))
+                shape, dim = _reshape(k.data[["num", "ipnum", "spnum"]])
+
+                dimensions = out.create_group("dimensions", track_order=True)
+                dimensions.update(dim)
+
+                data = k.data.reshape(shape, copy=False)
+                for n in data.dtype.names:
+                    if not n.startswith("R"):
+                        continue
+                    out.create_dataset(n, data=data[n])
+            else:
+                msg = f"Data for location = {k.flag} not supported"
+                raise NotImplementedError(msg)
+
+
 def _struct_scalar_to_dict(s):
     d = {}
     for name, (dtype, _) in s.dtype.fields.items():
@@ -121,6 +151,55 @@ class Labels:
             return self.labels_map[key]
         except KeyError:
             return AbqFil.b2str(key)
+
+
+def _reshape(v):
+    a = v[()]
+    names = a.dtype.names
+    dim = {}
+    lead = ()
+    for k in names[:-1]:
+        shape = a.shape
+        assert len(shape) == len(lead) + 1
+
+        q = a[lead][k]
+        assert q.shape == (shape[-1],)
+        assert np.ndim(q) == 1
+        assert len(q) == shape[-1]
+
+        z = q[0]
+        l = 1
+        while l < len(q) and q[l] == z:
+            l += 1
+
+        if l == 1 and z == 0:
+            continue
+
+        shape = shape[:-1] + (-1, l)
+        a.shape = shape
+        assert np.all(
+            a[np.index_exp[0:1] * len(lead) + np.index_exp[:, 0:1]][k] == a[k]
+        )
+        dim[k] = a[lead + np.index_exp[:, 0]][k]
+        lead += (0,)
+    # last dimension is special cased
+    k = names[-1]
+    assert np.all(
+        a[np.index_exp[0:1] * len(lead) + np.index_exp[:]][k] == a[k]
+    )
+    if a.shape[-1] == 1 and a[lead + (0,)][k] == 0:
+        # drop last axis
+        a = np.squeeze(a, axis=-1)
+    else:
+        dim[k] = a[(0,) * (np.ndim(a) - 1) + np.index_exp[:]][k]
+    assert len(a.shape) == len(dim)
+    if __debug__:
+        for i, k in enumerate(dim):
+            assert a.shape[i] == len(dim[k])
+            assert np.all(
+                np.reshape(dim[k], (-1,) + (1,) * (np.ndim(a) - 1 - i)) == a[k]
+            )
+    return a.shape, dim
 
 
 if __name__ == "__main__":
