@@ -100,7 +100,10 @@ def _vlenr(rtyp, rlen):
             ("nmaster", "i4"),
         ]
         if rlen > 5:
-            items.append(("msurf", f"({rlen - 5:d},)S8"))
+            ## FIXME: Shape-1 fields in dtypes
+            items.append(
+                ("msurf", f"({rlen - 5:d},)S8" if rlen - 5 > 1 else "S8")
+            )
         return _abq_dtype(*items)
     elif rtyp == 1900:
         return np.dtype(
@@ -281,10 +284,17 @@ class AbqFil:
 
                 # attribute 3 is redundant and not read, skipped with offset
                 assert s_rlen - 3 - 2 > 0
+                ## FIXME: Shape-1 fields in dtypes
                 dt = np.dtype(
                     {
                         "names": ["elnum", "f_id", "nodes"],
-                        "formats": ["i4", "i8", f"({s_rlen - 3 - 2:d},)i8"],
+                        "formats": [
+                            "i4",
+                            "i8",
+                            f"({s_rlen-3-2:d},)i8"
+                            if (s_rlen - 3 - 2) > 1
+                            else "i8",
+                        ],
                         "itemsize": 8 * (s_rlen - 2),
                         "offsets": [0, 8, 24],
                     }
@@ -423,7 +433,12 @@ class AbqFil:
 
             for k, o, s in types[:-1]:
                 dtdict["names"].append(f"R{k:d}")
-                dtdict["formats"].append(f"({s:d},)f8")
+                ## FIXME: Shape-1 fields in dtypes
+                ## see <https://numpy.org/doc/stable/release/1.17.0-notes.html#shape-1-fields-in-dtypes-won-t-be-collapsed-to-scalars-in-a-future-version>
+                ## used to be f"{s:d}f8" but "1f8" was a synonim of "f8" in numpy < 1.17
+                ## current implementation explicitly enforces this semantics
+                ## in the future it should be f"({s:d},)f8" for all s (i.e. s>=1)
+                dtdict["formats"].append(f"({s:d},)f8" if s > 1 else "f8")
                 dtdict["offsets"].append(16 + o * 8)
 
             dt = np.dtype(dtdict)
