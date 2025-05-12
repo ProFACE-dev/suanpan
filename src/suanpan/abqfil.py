@@ -99,11 +99,8 @@ def _vlenr(rtyp, rlen):
             ("nfacet", "i4"),
             ("nmaster", "i4"),
         ]
-        if rlen > 5:
-            ## FIXME: Shape-1 fields in dtypes
-            items.append(
-                ("msurf", f"({rlen - 5:d},)S8" if rlen - 5 > 1 else "S8")
-            )
+        for i in range(rlen - 5):
+            items.append((f"msurf{i + 1}", "S8"))
         return _abq_dtype(*items)
     elif rtyp == 1900:
         return np.dtype(
@@ -252,15 +249,15 @@ class AbqFil:
             if stype == 1:  # deformable
                 self.dsurf[name] = surf
                 surf["msurf"] = masters
+                # for deformable surfaces 'nmaster' is the number of associated master surfaces
                 assert rlen == 2 + 5 + nmaster
                 assert len(surf["msurf"]) == nmaster
             elif stype == 2:  # rigid
                 self.rsurf[name] = surf
-                # meaning of nmaster not defined in ths case
-                # abaqus sets nmasters > 0
-                # however *masters should be empty
-                assert len(masters) == 0, f"unexpected masters: {masters}"
+                # for rigid surfaces 'nmaster' is the reference node label
+                surf["reference_node"] = nmaster
                 assert rlen == 2 + 5
+                assert len(masters) == 0, f"unexpected masters: {masters}"
             else:
                 assert False, f"unrecognized surface type {stype}"
             pos, rtyp, rlen, rdat = next(stream)
