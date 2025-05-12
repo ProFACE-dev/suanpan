@@ -356,7 +356,8 @@ class AbqFil:
 
             ## FIXME: implemented only for element output
             if outtyp != 0:
-                raise NotImplementedError("only element output is implemented")
+                msg = "only element output is implemented"
+                raise NotImplementedError(msg)
 
             assert outtyp == 0, outtyp  # element output
             logger.debug(
