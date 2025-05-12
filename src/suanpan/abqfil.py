@@ -339,9 +339,7 @@ class AbqFil:
         # <end>
         # 2001 - inc stop
 
-        data = self.fil["data"][
-            self.step_rec[istep] : self.step_rec[istep + 1]
-        ]
+        data = self.fil["data"][self.step_rec[istep] : self.step_rec[istep + 1]]
         stream = ftnfil.rstream(data)
         pos, rtyp, rlen, rdat = next(stream)
 
