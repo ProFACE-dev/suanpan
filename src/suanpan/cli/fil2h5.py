@@ -100,10 +100,10 @@ def _add_surfaces(h5, abq, labels):
 
 def _add_steps(h5, abq):
     for i, h in enumerate(abq.step):
-        inc = h5.create_group(name=f"results/inc{i:03d}")
+        inc = h5.create_group(name=f"results/s{h['step']:d}/i{h['incr']:d}")
         inc.attrs.update(_struct_scalar_to_dict(h))
         for j, k in enumerate(abq.get_step(i)):
-            out = inc.create_group(name=f"req{j:03d}")
+            out = inc.create_group(name=f"r{j:d}")
             out.attrs["type"] = k.flag
             out.attrs["set"] = AbqFil.b2str(k.set)
             out.attrs["eltype"] = AbqFil.b2str(k.eltype)
