@@ -133,7 +133,7 @@ def datablock(data, start, end, rlen):
         data.flat[start:end]
         .reshape(-1, rlen)[..., 2:]
         .ravel()
-        .view(f"V{(rlen-2)*AWL}")
+        .view(f"V{(rlen - 2) * AWL}")
     )
 
 

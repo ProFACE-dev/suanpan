@@ -339,9 +339,7 @@ class AbqFil:
         # <end>
         # 2001 - inc stop
 
-        data = self.fil["data"][
-            self.step_rec[istep] : self.step_rec[istep + 1]
-        ]
+        data = self.fil["data"][self.step_rec[istep] : self.step_rec[istep + 1]]
         stream = ftnfil.rstream(data)
         pos, rtyp, rlen, rdat = next(stream)
 
@@ -358,7 +356,8 @@ class AbqFil:
 
             ## FIXME: implemented only for element output
             if outtyp != 0:
-                raise NotImplementedError("only element output is implemented")
+                msg = "only element output is implemented"
+                raise NotImplementedError(msg)
 
             assert outtyp == 0, outtyp  # element output
             logger.debug(
