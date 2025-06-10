@@ -20,9 +20,7 @@ from suanpan.abqfil import AbqFil
 
 
 @click.command()
-@click.argument(
-    "files", nargs=-1, type=click.Path(exists=True, path_type=Path)
-)
+@click.argument("files", nargs=-1, type=click.Path(exists=True, path_type=Path))
 def main(files: tuple[Path, ...]) -> None:
     for pth in files:
         try:
@@ -184,9 +182,7 @@ def _reshape(v):
         lead += (0,)
     # last dimension is special cased
     k = names[-1]
-    assert np.all(
-        a[np.index_exp[0:1] * len(lead) + np.index_exp[:]][k] == a[k]
-    )
+    assert np.all(a[np.index_exp[0:1] * len(lead) + np.index_exp[:]][k] == a[k])
     if a.shape[-1] == 1 and a[lead + (0,)][k] == 0:
         # drop last axis
         a = np.squeeze(a, axis=-1)
