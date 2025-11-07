@@ -2,11 +2,5 @@
 #
 # SPDX-License-Identifier: MIT
 """
-CLI commands: installed with optional dependency 'cli'.
+CLI commands: require optional dependencies
 """
-
-from importlib.util import find_spec
-
-if find_spec("click") is None or find_spec("h5py") is None:
-    msg = "CLI commands require optional dependency 'cli'"
-    raise SystemExit(msg)

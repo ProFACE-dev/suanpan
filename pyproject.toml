@@ -24,10 +24,12 @@ license = "MIT"
 license-files = ["LICENCES/MIT.txt"]
 
 [project.scripts]
+filinfo = "suanpan.cli.filinfo:main"
 fil2h5 = "suanpan.cli.fil2h5:main"
 
 [project.optional-dependencies]
-cli = [
+filinfo = [ "PyYAML >= 6.0.3" ]
+fil2h5 = [
     "click>=8.1.8",
     "h5py>=3.13.0",
 ]

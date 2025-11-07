@@ -15,7 +15,3 @@ src/suanpan/_version.py
 
 # Virtual environments
 .venv
-
-# other
-.python-version
-uv.lock

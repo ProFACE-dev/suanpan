@@ -12,8 +12,16 @@ import json
 import sys
 from pathlib import Path
 
-import click
-import h5py
+try:
+    import click
+    import h5py
+except ImportError:
+    print(
+        "'fil2h5' command requires the optional dependency 'fil2h5'",
+        file=sys.stderr,
+    )
+    sys.exit(2)
+
 import numpy as np
 
 from suanpan.abqfil import AbqFil
