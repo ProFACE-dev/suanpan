@@ -40,7 +40,7 @@ def main(files: tuple[Path, ...]) -> None:
                 _add_nodes(h5, abq)
                 _add_sets(h5, abq, labels)
                 _add_surfaces(h5, abq, labels)
-                _add_steps(h5, abq)
+                _add_steps(h5, abq, labels)
                 click.echo(h5.filename)
         except OSError as exc:
             click.echo(f"{pth}: conversion failed: {exc}", file=sys.stderr)
@@ -106,14 +106,14 @@ def _add_surfaces(h5, abq, labels):
             grp.create_dataset(name=f"{i}/nodes", data=fb["nodes"])
 
 
-def _add_steps(h5, abq):
+def _add_steps(h5, abq, labels):
     for i, h in enumerate(abq.step):
         inc = h5.create_group(name=f"results/s{h['step']:d}/i{h['incr']:d}")
         inc.attrs.update(_struct_scalar_to_dict(h))
         for j, k in enumerate(abq.get_step(i)):
             out = inc.create_group(name=f"r{j:d}")
             out.attrs["type"] = k.flag
-            out.attrs["set"] = AbqFil.b2str(k.set)
+            out.attrs["set"] = labels(k.set)
             out.attrs["eltype"] = AbqFil.b2str(k.eltype)
 
             if k.flag == 0:
@@ -121,9 +121,6 @@ def _add_steps(h5, abq):
                 assert np.all(k.data[singleton] == k.data[singleton][0])
                 out.attrs.update(_struct_scalar_to_dict(k.data[singleton][0]))
                 shape, dim = _reshape(k.data[["num", "ipnum", "spnum"]])
-
-                dimensions = out.create_group("dimensions", track_order=True)
-                dimensions.update(dim)
 
                 data = k.data.reshape(shape, copy=False)
                 for n in data.dtype.names:
