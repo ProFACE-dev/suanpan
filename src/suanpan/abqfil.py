@@ -8,6 +8,7 @@ import array
 import itertools
 import logging
 from collections import namedtuple
+from collections.abc import Sequence
 
 import numpy as np
 
@@ -35,14 +36,14 @@ def _pad(x):
     return x + (-x % ftnfil.AWL)
 
 
-def _abq_dtype(*items):
+def _abq_dtype(items: Sequence[tuple[str, str | tuple[str, int]]]) -> np.dtype:
     """make abaqus dtype"""
 
     if not items:
         msg = "The number of items should be grater than zero"
         raise ValueError(msg)
 
-    names, formats = zip(*items)
+    names, formats = zip(*items, strict=True)
     formats = tuple(map(np.dtype, formats))
     cumsum = tuple(itertools.accumulate(_pad(i.itemsize) for i in formats))
     assert len(names) == len(formats) == len(cumsum)
@@ -56,65 +57,73 @@ def _abq_dtype(*items):
     )
 
 
-ABQR = {
-    1911: _abq_dtype(
-        ("out_type", "i4"),
-        ("out_set", "S8"),
-        ("out_element", "S8"),
-    ),
-    1921: _abq_dtype(
-        ("ver", "S8"),
-        ("date", "S16"),
-        ("time", "S8"),
-        ("nelm", "u4"),
-        ("nnod", "u4"),
-        ("elsiz", "f8"),
-    ),
-    2000: _abq_dtype(
-        ("ttime", "f8"),
-        ("stime", "f8"),
-        ("cratio", "f8"),
-        ("sampl", "f8"),
-        ("procid", "i4"),
-        ("step", "u4"),
-        ("incr", "u4"),
-        ("lpert", "i4"),
-        ("lpf", "f8"),
-        ("freq", "f8"),
-        ("tinc", "f8"),
-        ("subheading", "S80"),
-    ),
-}
+def _record_dtype(rtyp: int, rlen: int) -> np.dtype:
+    """return numpy dtype for Abaqus records"""
 
+    items: list[tuple[str, str | tuple[str, int]]]
+    match rtyp, rlen - 2:
+        case (1501, dlen) if dlen >= 5:
+            items = [
+                ("name", "S8"),
+                ("sdim", "i4"),
+                ("stype", "i4"),
+                ("nfacet", "i4"),
+                ("nmaster", "i4"),
+                *((f"msurf{i + 1}", "S8") for i in range(dlen - 5)),
+            ]
+        case (1900, dlen) if dlen > 2:
+            items = [
+                ("elnum", "i8"),
+                ("eltyp", "S8"),
+                ("ninc", ("i8", dlen - 2)),
+            ]
+        case (1901, dlen) if dlen > 1:
+            items = [
+                ("nnum", "i8"),
+                ("coord", ("f8", dlen - 1)),
+            ]
+        case (1911, 3):
+            items = [
+                ("out_type", "i4"),
+                ("out_set", "S8"),
+                ("out_element", "S8"),
+            ]
+        case (1921, 7):
+            items = [
+                ("ver", "S8"),
+                ("date", "S16"),
+                ("time", "S8"),
+                ("nelm", "u4"),
+                ("nnod", "u4"),
+                ("elsiz", "f8"),
+            ]
+        case (1940, dlen) if dlen > 1:
+            items = [
+                ("key", "u4"),
+                ("label", f"S{(dlen - 1) * ftnfil.AWL}"),
+            ]
+        case (2000, 21):
+            items = [
+                ("ttime", "f8"),
+                ("stime", "f8"),
+                ("cratio", "f8"),
+                ("sampl", "f8"),
+                ("procid", "i4"),
+                ("step", "u4"),
+                ("incr", "u4"),
+                ("lpert", "i4"),
+                ("lpf", "f8"),
+                ("freq", "f8"),
+                ("tinc", "f8"),
+                ("subheading", "S80"),
+            ]
+        case _:
+            msg = f"Unrecognized record: rtype = {rtyp}, rlen = {rlen}"
+            raise ValueError(msg)
 
-def _vlenr(rtyp, rlen):
-    # first 2 records are not data
-    rlen -= 2
-    if rtyp == 1501:
-        assert rlen >= 5
-        items = [
-            ("name", "S8"),
-            ("sdim", "i4"),
-            ("stype", "i4"),
-            ("nfacet", "i4"),
-            ("nmaster", "i4"),
-        ]
-        for i in range(rlen - 5):
-            items.append((f"msurf{i + 1}", "S8"))
-        return _abq_dtype(*items)
-    elif rtyp == 1900:
-        return np.dtype(
-            [("elnum", "i8"), ("eltyp", "S8"), ("ninc", "i8", (rlen - 2,))]
-        )
-    elif rtyp == 1901:
-        return np.dtype([("nnum", "i8"), ("coord", "f8", (rlen - 1,))])
-    elif rtyp == 1940:
-        return _abq_dtype(
-            ("key", "u4"), ("label", f"S{(rlen - 1) * ftnfil.AWL}")
-        )
-    else:
-        msg = f"Unknown record {rtyp}"
-        raise ValueError(msg)
+    dtype = _abq_dtype(items)
+    assert dtype.itemsize == (rlen - 2) * ftnfil.AWL, (rtyp, rlen)
+    return dtype
 
 
 class AbqFil:
@@ -141,7 +150,7 @@ class AbqFil:
         # 1921: general info
         assert pos == 0 and rtyp == 1921, (pos, rtyp, rlen)
         logger.debug("Collect general info (%.2f)", pos / data.size)
-        self.info = rdat.view(ABQR[rtyp])[0]
+        self.info = rdat.view(_record_dtype(rtyp, rlen))[0]
         pos, rtyp, rlen, rdat = next(stream)
 
         # 1900, 1990: build element incidences
@@ -152,7 +161,7 @@ class AbqFil:
             s_pos, s_rtyp, s_rlen = pos, rtyp, rlen
             pos, rtyp, rlen, rdat = stream.send(())
             mesh = ftnfil.datablock(data, s_pos, pos, s_rlen).view(
-                _vlenr(s_rtyp, s_rlen)
+                _record_dtype(s_rtyp, s_rlen)
             )
             # sometimes abaqus gathers elements of different eltype in
             # the same 1900 record
@@ -168,7 +177,8 @@ class AbqFil:
                 elnum, eltyp, ninc = self.elm[-1][0]
                 ninc = np.append(ninc, rdat.view("i8"))
                 self.elm[-1] = np.array(
-                    [(elnum, eltyp, ninc)], dtype=_vlenr(1900, len(ninc) + 2)
+                    [(elnum, eltyp, ninc)],
+                    dtype=_record_dtype(1900, len(ninc) + 2),
                 )
 
                 pos, rtyp, rlen, rdat = next(stream)
@@ -179,7 +189,7 @@ class AbqFil:
         s_pos, s_rtyp, s_rlen = pos, rtyp, rlen
         pos, rtyp, rlen, rdat = stream.send(())
         self.coord = ftnfil.datablock(data, s_pos, pos, s_rlen).view(
-            _vlenr(s_rtyp, s_rlen)
+            _record_dtype(s_rtyp, s_rlen)
         )
         assert _isunique(self.coord["nnum"])
 
@@ -215,7 +225,7 @@ class AbqFil:
         # 1940: label cross reference
         self.label = {}
         while rtyp == 1940:
-            k, v = rdat.view(_vlenr(rtyp, rlen)).item()
+            k, v = rdat.view(_record_dtype(rtyp, rlen)).item()
             k = f"{k:8d}".encode("ASCII")
             self.label[k] = v
             pos, rtyp, rlen, rdat = next(stream)
@@ -242,7 +252,7 @@ class AbqFil:
         while rtyp == 1501:
             surf = {}
             name, surf["sdim"], stype, nfacet, nmaster, *masters = rdat.view(
-                _vlenr(rtyp, rlen)
+                _record_dtype(rtyp, rlen)
             ).item()
             assert 1 <= surf["sdim"] <= 4
             assert 1 <= stype <= 2
@@ -309,7 +319,7 @@ class AbqFil:
         assert rtyp == 2000
 
         step_rec, step_data = ftnfil.incstart(data, pos // ftnfil.AWR)
-        self.step = np.frombuffer(step_data, dtype=ABQR[2000])
+        self.step = np.frombuffer(step_data, dtype=_record_dtype(rtyp, rlen))
         self.step_rec = step_rec
         assert len(self.step_rec) == len(self.step) + 1
         logger.debug("Found %d steps", len(self.step))
@@ -352,7 +362,7 @@ class AbqFil:
             if rtyp == 2001:
                 break
             assert rtyp == 1911, (rtyp, rlen)
-            outtyp, outset, outelm = rdat.view(ABQR[1911]).item()
+            outtyp, outset, outelm = rdat.view(_record_dtype(rtyp, rlen)).item()
 
             ## FIXME: implemented only for element output
             if outtyp != 0:
