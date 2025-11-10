@@ -259,7 +259,8 @@ class AbqFil:
             if stype == 1:  # deformable
                 self.dsurf[name] = surf
                 surf["msurf"] = masters
-                # for deformable surfaces 'nmaster' is the number of associated master surfaces
+                # for deformable surfaces 'nmaster' is the number of associated
+                # master surfaces
                 assert rlen == 2 + 5 + nmaster
                 assert len(surf["msurf"]) == nmaster
             elif stype == 2:  # rigid
