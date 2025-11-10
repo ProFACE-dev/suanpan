@@ -33,6 +33,13 @@ filinfo = [ "PyYAML >= 6.0.3" ]
 requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
 
+[dependency-groups]
+dev = [
+    "coverage>=7.11.3",
+    "mypy>=1.18.2",
+    "types-pyyaml>=6.0.12.20250915",
+]
+
 #
 # hatch
 #
