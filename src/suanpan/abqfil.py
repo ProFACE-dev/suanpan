@@ -51,7 +51,7 @@ def _abq_dtype(items: Sequence[tuple[str, str | tuple[str, int]]]) -> np.dtype:
         {
             "names": names,
             "formats": formats,
-            "offsets": (0,) + cumsum[:-1],
+            "offsets": (0, *cumsum[:-1]),
             "itemsize": cumsum[-1],
         }
     )
@@ -281,14 +281,14 @@ class AbqFil:
 
                 # 1502 format
                 # Record key: 1502(S)   Record type: Surface facet
-                # Attributes:   1  –  Underlying element number.
-                #               2  –  Element face key
-                #                     (1–S1, 2–S2, 3–S3, 4–S4, 5–S5, 6–S6,
-                #                      7–SPOS, 8–SNEG).
-                #               3  –  Number of nodes in facet.
-                #               4  –  Node number of the facet's first node.
-                #               5  –  Node number of the facet's second node.
-                #               6  –  Etc.
+                # Attributes:   1  -  Underlying element number.
+                #               2  -  Element face key
+                #                     (1-S1, 2-S2, 3-S3, 4-S4, 5-S5, 6-S6,
+                #                      7-SPOS, 8-SNEG).
+                #               3  -  Number of nodes in facet.
+                #               4  -  Node number of the facet's first node.
+                #               5  -  Node number of the facet's second node.
+                #               6  -  Etc.
 
                 # attribute 3 is redundant and not read, skipped with offset
                 assert s_rlen - 3 - 2 > 0
