@@ -15,3 +15,7 @@ src/suanpan/_version.py
 
 # Virtual environments
 .venv
+
+# coverage
+.coverage
+htmlcov/

@@ -38,10 +38,11 @@ fil2h5 = [
 requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
 
-
 [dependency-groups]
 dev = [
-    "mypy>=1.15.0",
+    "coverage>=7.11.3",
+    "mypy>=1.18.2",
+    "types-pyyaml>=6.0.12.20250915",
 ]
 
 #
@@ -65,7 +66,7 @@ line-length = 80
 target-version = "py310"
 
 [tool.ruff.lint]
-select = ["A", "EM", "I", "NPY", "S", "SIM", "TRY", "UP"]
+select = ["A", "E", "EM", "F", "I", "NPY", "RUF", "S", "SIM", "TRY", "T10", "UP"]
 ignore = ["S101"]
 
 #

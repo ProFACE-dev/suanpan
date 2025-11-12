@@ -4,7 +4,7 @@
 
 """Python interface to Abaqus .fil files"""
 
-from ._version import __version__
+from ._version import __version__ as __version__
 
 MAX_ABAQUS_UNSIGNED = 999_999_999
 MAX_NODE_NUMBER = MAX_ABAQUS_UNSIGNED
