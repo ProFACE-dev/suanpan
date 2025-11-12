@@ -30,6 +30,8 @@ from suanpan.abqfil import AbqFil
 @click.command()
 @click.argument("files", nargs=-1, type=click.Path(exists=True, path_type=Path))
 def main(files: tuple[Path, ...]) -> None:
+    # globally set track insertion order option
+    h5py.get_config().track_order = True
     for pth in files:
         try:
             with h5py.File(pth.with_suffix(".h5"), mode="w") as h5:
@@ -55,14 +57,12 @@ def _add_meta(h5, abq):
 
 def _add_elements(h5, abq):
     elements = h5.create_group(name="elements")
-    for arecs in abq.elm:
+    for i, arecs in enumerate(abq.elm):
         element_type = arecs["eltyp"][0]
         assert np.all(element_type == arecs["eltyp"])
         element_type = abq.b2str(element_type)
-        assert element_type not in elements, (
-            f"Duplicate definition for {element_type}"
-        )
-        group = elements.create_group(element_type)
+        group = elements.create_group(f"G{i:d}")
+        group.attrs["eltype"] = element_type
         group.create_dataset(name="numbers", data=arecs["elnum"])
         group.create_dataset(name="incidences", data=arecs["ninc"])
 
@@ -111,7 +111,7 @@ def _add_steps(h5, abq, labels):
         inc = h5.create_group(name=f"results/s{h['step']:d}/i{h['incr']:d}")
         inc.attrs.update(_struct_scalar_to_dict(h))
         for j, k in enumerate(abq.get_step(i)):
-            out = inc.create_group(name=f"r{j:d}")
+            out = inc.create_group(name=f"G{j:d}")
             out.attrs["type"] = k.flag
             out.attrs["set"] = labels(k.set)
             out.attrs["eltype"] = AbqFil.b2str(k.eltype)
