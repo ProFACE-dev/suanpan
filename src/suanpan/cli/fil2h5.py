@@ -120,7 +120,7 @@ def _add_steps(h5, abq, labels):
                 singleton = ["loc", "rebarname", "ndi", "nshr", "ndir", "nsfc"]
                 assert np.all(k.data[singleton] == k.data[singleton][0])
                 out.attrs.update(_struct_scalar_to_dict(k.data[singleton][0]))
-                shape, dim = _reshape(k.data[["num", "ipnum", "spnum"]])
+                shape, _dim = _reshape(k.data[["num", "ipnum", "spnum"]])
 
                 data = k.data.reshape(shape, copy=False)
                 for n in data.dtype.names:
@@ -178,7 +178,7 @@ def _reshape(v):
         if l == 1 and z == 0:
             continue
 
-        shape = shape[:-1] + (-1, l)
+        shape = (*shape[:-1], -1, l)
         a.shape = shape
         assert np.all(
             a[np.index_exp[0:1] * len(lead) + np.index_exp[:, 0:1]][k] == a[k]
@@ -188,7 +188,7 @@ def _reshape(v):
     # last dimension is special cased
     k = names[-1]
     assert np.all(a[np.index_exp[0:1] * len(lead) + np.index_exp[:]][k] == a[k])
-    if a.shape[-1] == 1 and a[lead + (0,)][k] == 0:
+    if a.shape[-1] == 1 and a[(*lead, 0)][k] == 0:
         # drop last axis
         a = np.squeeze(a, axis=-1)
     else:
