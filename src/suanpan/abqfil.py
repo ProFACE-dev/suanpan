@@ -156,32 +156,44 @@ class AbqFil:
         # 1900, 1990: build element incidences
         assert rtyp == 1900, (pos, rtyp, rlen)
         logger.debug("Collect elm data (%.2f)", pos / data.size)
-        self.elm = []
+        elm = {}
         while rtyp == 1900:
             s_pos, s_rtyp, s_rlen = pos, rtyp, rlen
             pos, rtyp, rlen, rdat = stream.send(())
             mesh = ftnfil.datablock(data, s_pos, pos, s_rlen).view(
                 _record_dtype(s_rtyp, s_rlen)
             )
-            # sometimes abaqus gathers elements of different eltype in
-            # the same 1900 record
+            # usually len(np.unique(mesh["eltyp"]) == 1, but sometimes
+            # we have consecutive element blocks with the same number
+            # of nodes, i.e. same rlen.
             for eltyp in np.unique(mesh["eltyp"]):
                 mesh_comp = mesh[mesh["eltyp"] == eltyp]
                 assert _issorted_strict(mesh_comp["elnum"])
-                self.elm.append(mesh_comp)
+                elm.setdefault(eltyp, []).append(mesh_comp)
 
-            ## FIXME: check il 1990 record handling is compatible
-            ## with above 1900 multi-element type record
+            ## FIXME: 1990 record handling not tested!
             while rtyp == 1990:  # continuation record
-                assert len(self.elm[-1]) == 1
-                elnum, eltyp, ninc = self.elm[-1][0]
+                assert len(elm[eltyp][-1]) == 1
+                elnum, _, ninc = elm[eltyp][-1][0]
+                assert _ == eltyp
                 ninc = np.append(ninc, rdat.view("i8"))
-                self.elm[-1] = np.array(
+                elm[eltyp][-1] = np.array(
                     [(elnum, eltyp, ninc)],
                     dtype=_record_dtype(1900, len(ninc) + 2),
                 )
-
                 pos, rtyp, rlen, rdat = next(stream)
+
+        # fuse all homogeneous mesh components
+        self.elm = [np.concatenate(elm.pop(eltyp)) for eltyp in list(elm)]
+        assert elm == {}
+        for v in self.elm:
+            assert np.all(v["eltyp"] == v["eltyp"][0])
+            assert _issorted_strict(v["elnum"])
+            if np.any(v["elnum"] - v["elnum"][0] != np.arange(len(v))):
+                logger.warning(
+                    "Element numbers are not consecutive: %s",
+                    self.b2str(v["eltyp"][0]),
+                )
 
         # 1901: build nodal coordinates
         logger.debug("Collect node data (%.2f)", pos / data.size)
