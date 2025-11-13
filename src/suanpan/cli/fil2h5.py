@@ -9,6 +9,7 @@ Entry point for 'fil2h5'
 __all__ = ["main"]
 
 import json
+import logging
 import sys
 from pathlib import Path
 
@@ -30,6 +31,7 @@ from suanpan.abqfil import AbqFil
 @click.command()
 @click.argument("files", nargs=-1, type=click.Path(exists=True, path_type=Path))
 def main(files: tuple[Path, ...]) -> None:
+    logging.basicConfig(level=logging.INFO)
     # globally set track insertion order option
     h5py.get_config().track_order = True
     for pth in files:
