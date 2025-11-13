@@ -26,7 +26,7 @@ def _issorted(v):
     return (v[:-1] <= v[1:]).all()
 
 
-def _isunique(v):
+def _issorted_strict(v):
     """returns true if vector v is sorted with no repetitions"""
     return (v[:-1] < v[1:]).all()
 
@@ -167,7 +167,7 @@ class AbqFil:
             # the same 1900 record
             for eltyp in np.unique(mesh["eltyp"]):
                 mesh_comp = mesh[mesh["eltyp"] == eltyp]
-                assert _isunique(mesh_comp["elnum"])
+                assert _issorted_strict(mesh_comp["elnum"])
                 self.elm.append(mesh_comp)
 
             ## FIXME: check il 1990 record handling is compatible
@@ -191,7 +191,7 @@ class AbqFil:
         self.coord = ftnfil.datablock(data, s_pos, pos, s_rlen).view(
             _record_dtype(s_rtyp, s_rlen)
         )
-        assert _isunique(self.coord["nnum"])
+        assert _issorted_strict(self.coord["nnum"])
 
         # 1933, 1934: element sets
         logger.debug("Collect elset data (%.2f)", pos / data.size)
@@ -206,7 +206,7 @@ class AbqFil:
                 pos, rtyp, rlen, rdat = next(stream)
 
             self.elset[elset_label] = np.array(elset_array)
-            assert _isunique(self.elset[elset_label])
+            assert _issorted_strict(self.elset[elset_label])
 
         # 1931, 1932: node sets
         logger.debug("Collect nset data (%.2f)", pos / data.size)
