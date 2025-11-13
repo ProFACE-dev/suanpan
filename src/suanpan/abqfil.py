@@ -7,8 +7,9 @@
 import array
 import itertools
 import logging
-from collections import namedtuple
-from collections.abc import Sequence
+import os
+from collections.abc import Iterator, Sequence
+from typing import Any, NamedTuple
 
 import numpy as np
 
@@ -17,21 +18,26 @@ from . import ftnfil
 logging.captureWarnings(True)
 logger = logging.getLogger(__name__)
 
+
 # named tuple for 1911 + datarecords
-StepDataBlock = namedtuple("StepDataBlock", ("flag", "set", "eltype", "data"))
+class StepDataBlock(NamedTuple):
+    flag: int
+    set: bytes
+    eltype: bytes
+    data: np.ndarray
 
 
-def _issorted(v):
+def _issorted(v: np.ndarray) -> np.bool:
     """returns true if vector v is sorted"""
-    return (v[:-1] <= v[1:]).all()
+    return np.all(v[:-1] <= v[1:])
 
 
-def _issorted_strict(v):
+def _issorted_strict(v: np.ndarray) -> np.bool:
     """returns true if vector v is sorted with no repetitions"""
-    return (v[:-1] < v[1:]).all()
+    return np.all(v[:-1] < v[1:])
 
 
-def _pad(x):
+def _pad(x: int) -> int:
     """return min multiple of AWL grater than or equal to x"""
     return x + (-x % ftnfil.AWL)
 
@@ -128,10 +134,10 @@ def _record_dtype(rtyp: int, rlen: int) -> np.dtype:
 
 class AbqFil:
     @staticmethod
-    def b2str(b):
+    def b2str(b: bytes) -> str:
         return b.decode("ASCII").rstrip()
 
-    def __str__(self):
+    def __str__(self) -> str:
         return (
             f"{self.path},"
             f" {self.b2str(self.info['date'])}"
@@ -139,7 +145,7 @@ class AbqFil:
             f" Abaqus ver. {self.b2str(self.info['ver'])}"
         )
 
-    def __init__(self, path):
+    def __init__(self, path: str | os.PathLike) -> None:
         self.path = path
         self.fil = ftnfil.mmfil(path)
 
@@ -156,7 +162,7 @@ class AbqFil:
         # 1900, 1990: build element incidences
         assert rtyp == 1900, (pos, rtyp, rlen)
         logger.debug("Collect elm data (%.2f)", pos / data.size)
-        elm = {}
+        elm: dict[bytes, list[np.ndarray]] = {}
         while rtyp == 1900:
             s_pos, s_rtyp, s_rlen = pos, rtyp, rlen
             pos, rtyp, rlen, rdat = stream.send(())
@@ -184,7 +190,7 @@ class AbqFil:
                 pos, rtyp, rlen, rdat = next(stream)
 
         # fuse all homogeneous mesh components
-        self.elm = [np.concatenate(elm.pop(eltyp)) for eltyp in list(elm)]
+        self.elm = [np.concat(elm.pop(eltyp)) for eltyp in list(elm)]
         assert elm == {}
         for v in self.elm:
             assert np.all(v["eltyp"] == v["eltyp"][0])
@@ -344,7 +350,7 @@ class AbqFil:
                 step_rec[i + 1] / len(data),
             )
 
-    def get_step(self, istep):
+    def get_step(self, istep: int) -> Iterator[StepDataBlock]:
         """get step data"""
 
         logger.debug("Collect step %d", istep)
@@ -414,7 +420,7 @@ class AbqFil:
 
             # construct dtype for this output block
             # record key: 1
-            dtdict = {
+            dtdict: dict[str, Any] = {
                 "names": [
                     "num",
                     "ipnum",
@@ -448,7 +454,7 @@ class AbqFil:
                 dtdict["formats"].append(f"({s:d},)f8")
                 dtdict["offsets"].append(16 + o * 8)
 
-            dt = np.dtype(dtdict)
+            dt = np.dtype(dtdict)  # type: ignore[call-overload]
             logger.debug("data block: %s", dt.names)
 
             # skip to last data record
@@ -464,7 +470,7 @@ class AbqFil:
             assert _issorted(r["num"])
             if __debug__:
                 for k in ["loc", "ndi", "nshr", "ndir", "nsfc"]:
-                    assert (r[k] == r[k][0]).all(), (istep, k)
+                    assert np.all(r[k] == r[k][0]), (istep, k)
 
             logger.debug("data block: done")
             yield StepDataBlock(outtyp, outset, outelm, r)
