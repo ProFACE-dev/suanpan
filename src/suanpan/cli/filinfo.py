@@ -44,7 +44,8 @@ def main() -> None:
             "date": f"{b2str(abq.info['date'])} {b2str(abq.info['time'])}",
             "heading": b2str(abq.heading),
             "nodes": abq.info["nnod"].item(),
-            "elements": abq.info["nelm"].item(),
+            "elements": {b2str(v["eltyp"][0]): len(v) for v in abq.elm}
+            | {"total": abq.info["nelm"].item()},
             "frames": [
                 {
                     "step": s["step"].item(),
