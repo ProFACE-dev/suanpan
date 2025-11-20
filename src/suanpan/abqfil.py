@@ -12,6 +12,7 @@ from collections.abc import Iterator, Sequence
 from typing import Any, NamedTuple
 
 import numpy as np
+import numpy.typing as npt
 
 from . import ftnfil
 
@@ -190,7 +191,9 @@ class AbqFil:
                 pos, rtyp, rlen, rdat = next(stream)
 
         # fuse all homogeneous mesh components
-        self.elm = [np.concat(elm.pop(eltyp)) for eltyp in list(elm)]
+        self.elm: list[np.ndarray] = [
+            np.concat(elm.pop(eltyp)) for eltyp in list(elm)
+        ]
         assert elm == {}
         nelm_total = 0
         for v in self.elm:
@@ -209,15 +212,15 @@ class AbqFil:
         assert rtyp == 1901, (pos, rtyp, rlen)
         s_pos, s_rtyp, s_rlen = pos, rtyp, rlen
         pos, rtyp, rlen, rdat = stream.send(())
-        self.coord = ftnfil.datablock(data, s_pos, pos, s_rlen).view(
-            _record_dtype(s_rtyp, s_rlen)
-        )
+        self.coord: np.ndarray = ftnfil.datablock(
+            data, s_pos, pos, s_rlen
+        ).view(_record_dtype(s_rtyp, s_rlen))
         assert _issorted_strict(self.coord["nnum"])
         assert len(self.coord) == self.info["nnod"]
 
         # 1933, 1934: element sets
         logger.debug("Collect elset data (%.2f)", pos / data.size)
-        self.elset = {}
+        self.elset: dict[bytes, npt.NDArray[np.int32]] = {}
         while rtyp == 1933:
             elset_label = bytes(rdat[0])
             elset_array = array.array("I", rdat[1:].view("=2u4")[..., 0])
@@ -232,7 +235,7 @@ class AbqFil:
 
         # 1931, 1932: node sets
         logger.debug("Collect nset data (%.2f)", pos / data.size)
-        self.nset = {}
+        self.nset: dict[bytes, npt.NDArray[np.int32]] = {}
         while rtyp == 1931:
             nset_label = bytes(rdat[0])
             nset_array = array.array("I", rdat[1:].view("=2u4")[..., 0])
@@ -245,7 +248,7 @@ class AbqFil:
             self.nset[nset_label] = np.array(nset_array)
 
         # 1940: label cross reference
-        self.label = {}
+        self.label: dict[bytes, bytes] = {}
         while rtyp == 1940:
             k, v = rdat.view(_record_dtype(rtyp, rlen)).item()
             k = f"{k:8d}".encode("ASCII")
@@ -254,12 +257,12 @@ class AbqFil:
 
         # 1902: active degrees of freedom
         assert rtyp == 1902, (pos, rtyp, rlen)
-        self.dof = rdat.view("=2u4")[..., 0]
+        self.dof: npt.NDArray[np.int32] = rdat.view("=2u4")[..., 0]
         pos, rtyp, rlen, rdat = next(stream)
 
         # 1922: heading
         assert rtyp == 1922, (pos, rtyp, rlen)
-        self.heading = bytes(rdat)
+        self.heading: bytes = bytes(rdat)
         pos, rtyp, rlen, rdat = next(stream)
 
         # 2001: padding
@@ -269,8 +272,9 @@ class AbqFil:
 
         # 1501, 1502: surfaces
         logger.debug("Collect surf data (%.2f)", pos / data.size)
-        self.rsurf = {}
-        self.dsurf = {}
+        # TODO: refactor rsurf/dsurf type (named tuple?)
+        self.rsurf: dict[bytes, Any] = {}
+        self.dsurf: dict[bytes, Any] = {}
         while rtyp == 1501:
             surf = {}
             name, surf["sdim"], stype, nfacet, nmaster, *masters = rdat.view(
@@ -342,9 +346,11 @@ class AbqFil:
         assert rtyp == 2000
 
         step_rec, step_data = ftnfil.incstart(data, pos // ftnfil.AWR)
-        self.step = np.frombuffer(step_data, dtype=_record_dtype(rtyp, rlen))
-        self.step_rec = step_rec
-        assert len(self.step_rec) == len(self.step) + 1
+        self.step: np.ndarray = np.frombuffer(
+            step_data, dtype=_record_dtype(rtyp, rlen)
+        )
+        self._step_rec = step_rec
+        assert len(self._step_rec) == len(self.step) + 1
         logger.debug("Found %d steps", len(self.step))
         for i in range(len(self.step)):
             logger.debug(
@@ -372,7 +378,9 @@ class AbqFil:
         # <end>
         # 2001 - inc stop
 
-        data = self.fil["data"][self.step_rec[istep] : self.step_rec[istep + 1]]
+        data = self.fil["data"][
+            self._step_rec[istep] : self._step_rec[istep + 1]
+        ]
         stream = ftnfil.rstream(data)
         pos, rtyp, rlen, rdat = next(stream)
 
