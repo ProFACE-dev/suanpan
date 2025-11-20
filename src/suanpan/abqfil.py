@@ -192,14 +192,17 @@ class AbqFil:
         # fuse all homogeneous mesh components
         self.elm = [np.concat(elm.pop(eltyp)) for eltyp in list(elm)]
         assert elm == {}
+        nelm_total = 0
         for v in self.elm:
             assert np.all(v["eltyp"] == v["eltyp"][0])
             assert _issorted_strict(v["elnum"])
+            nelm_total += len(v)
             if np.any(v["elnum"] - v["elnum"][0] != np.arange(len(v))):
                 logger.warning(
                     "Element numbers are not consecutive: %s",
                     self.b2str(v["eltyp"][0]),
                 )
+        assert nelm_total == self.info["nelm"]
 
         # 1901: build nodal coordinates
         logger.debug("Collect node data (%.2f)", pos / data.size)
@@ -210,6 +213,7 @@ class AbqFil:
             _record_dtype(s_rtyp, s_rlen)
         )
         assert _issorted_strict(self.coord["nnum"])
+        assert len(self.coord) == self.info["nnod"]
 
         # 1933, 1934: element sets
         logger.debug("Collect elset data (%.2f)", pos / data.size)
