@@ -25,6 +25,7 @@ def main() -> None:
         description="Outputs a YAML summary of the .fil files",
     )
 
+    parser.add_argument("-v", "--verbose", action="store_true")
     parser.add_argument("filename", nargs="*")
     args = parser.parse_args()
 
@@ -56,6 +57,24 @@ def main() -> None:
                 for s in abq.step
             ],
         }
+
+        if args.verbose:
+            for i, frame_info in enumerate(info["frames"]):
+                for db in abq.get_step(i):
+                    frame_info.setdefault("data", []).append(
+                        {
+                            "flag": db.flag,
+                            "eltype": b2str(db.eltype),
+                            "elset": b2str(abq.label.get(db.set, db.set))
+                            or None,
+                            "location": db.data["loc"][0].item(),
+                            "records": [
+                                r
+                                for r in db.data.dtype.names
+                                if r.startswith("R")
+                            ],
+                        }
+                    )
 
         print(
             yaml.safe_dump(
