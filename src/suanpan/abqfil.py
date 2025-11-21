@@ -5,11 +5,12 @@
 """high level interface"""
 
 import array
+import dataclasses
 import itertools
 import logging
 import os
 from collections.abc import Iterator, Sequence
-from typing import Any, NamedTuple
+from typing import Any
 
 import numpy as np
 import numpy.typing as npt
@@ -20,12 +21,16 @@ logging.captureWarnings(True)
 logger = logging.getLogger(__name__)
 
 
-# named tuple for 1911 + datarecords
-class StepDataBlock(NamedTuple):
+@dataclasses.dataclass
+class StepDataBlock:
     flag: int
     set: bytes
-    eltype: bytes | None
-    data: np.ndarray | None
+
+
+@dataclasses.dataclass
+class StepDataBlockElement(StepDataBlock):
+    eltype: bytes
+    data: np.ndarray
 
 
 def _issorted(v: np.ndarray) -> np.bool:
@@ -487,11 +492,13 @@ class AbqFil:
                     for k in ["loc", "ndi", "nshr", "ndir", "nsfc"]:
                         assert np.all(r[k] == r[k][0]), (istep, k)
                 logger.debug("data block: done")
-                yield StepDataBlock(outtyp, outset, outelm, r)
+                yield StepDataBlockElement(
+                    flag=outtyp, set=outset, eltype=outelm, data=r
+                )
             else:
                 logger.error("Not implemented: element output flag %d", outtyp)
                 # skip to end of data block
                 pos, rtyp, rlen, rdat = stream.send((1911, 2001))
-                yield StepDataBlock(outtyp, outset, None, None)
+                yield StepDataBlock(flag=outtyp, set=outset)
 
         return

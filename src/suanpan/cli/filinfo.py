@@ -6,8 +6,6 @@ import argparse
 import sys
 from typing import Any
 
-import numpy as np
-
 try:
     import yaml
 except ImportError:
@@ -17,7 +15,7 @@ except ImportError:
     )
     sys.exit(2)
 
-from suanpan.abqfil import AbqFil, StepDataBlock
+from suanpan.abqfil import AbqFil, StepDataBlock, StepDataBlockElement
 
 b2str = AbqFil.b2str
 
@@ -71,8 +69,7 @@ def main() -> None:
                     }
                     match db:
                         case StepDataBlock(flag=0):
-                            assert isinstance(db.eltype, bytes)
-                            assert isinstance(db.data, np.ndarray)
+                            assert isinstance(db, StepDataBlockElement)
                             db_info |= {
                                 "eltype": b2str(db.eltype),
                                 "location": db.data["loc"][0].item(),
@@ -83,8 +80,7 @@ def main() -> None:
                                 ],
                             }
                         case _:
-                            assert db.data is None
-                            assert db.eltype is None
+                            pass
                     data.append(db_info)
 
         print(
