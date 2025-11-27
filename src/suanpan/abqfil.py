@@ -353,21 +353,23 @@ class AbqFil:
 
         # hic sunt step data
         logger.debug("Collect step data (%.2f)", pos / data.size)
-        assert rtyp == 2000
+        assert (rtyp, rlen) == (2000, 23)
+        dtype2000 = _record_dtype(2000, 23)
 
-        step_rec, step_data = ftnfil.incstart(data, pos // ftnfil.AWR)
-        self.step: np.ndarray = np.frombuffer(
-            step_data, dtype=_record_dtype(rtyp, rlen)
-        )
-        self._step_rec = step_rec
-        assert len(self._step_rec) == len(self.step) + 1
+        step_ptr, step_data = ftnfil.incstart(data, pos // ftnfil.AWR)
+        assert step_ptr[0] == pos // ftnfil.AWR, (step_ptr, pos)
+
+        self.step: np.ndarray = np.frombuffer(step_data, dtype=dtype2000)
+        assert len(self.step) == len(step_ptr) - 1
+
+        self._step_ptr = step_ptr
         logger.debug("Found %d steps", len(self.step))
         for i in range(len(self.step)):
             logger.debug(
                 "step data: %d (%#.2f -- %#.2f)",
                 i,
-                step_rec[i] / len(data),
-                step_rec[i + 1] / len(data),
+                step_ptr[i] / len(data),
+                step_ptr[i + 1] / len(data),
             )
 
     def get_step(self, istep: int) -> Iterator[StepDataBlock]:
@@ -378,7 +380,7 @@ class AbqFil:
         # record keys
         # 2000 - inc start
         # <repeat (0 or more times)>
-        #    1911 - element/node output
+        #    1911 - output request
         #    <repeat (0 or more times)>
         #        1 - element header | 101 - node header
         #        <repeat>
@@ -386,27 +388,28 @@ class AbqFil:
         #        <end>
         #    <end>
         # <end>
-        # 2001 - inc stop
+        # 2001 - inc stop/padding
 
         data = self.fil["data"][
-            self._step_rec[istep] : self._step_rec[istep + 1]
+            self._step_ptr[istep] : self._step_ptr[istep + 1]
         ]
         stream = ftnfil.rstream(data)
-        pos, rtyp, rlen, rdat = next(stream)
+        pos, rtyp, rlen, _ = next(stream)
 
         # skip first 2000 record
-        assert rtyp == 2000, rtyp
+        assert (rtyp, rlen) == (2000, 23), (rtyp, rlen)
         pos, rtyp, rlen, rdat = next(stream)
 
         # iterate over 1911 records
         while True:
             if rtyp == 2001:
                 break
-            assert rtyp == 1911, (rtyp, rlen)
-            r1911 = rdat.view(_record_dtype(rtyp, rlen))[0]
-            outtyp, outset, *_ = r1911.item()
 
-            if outtyp == 0:
+            assert rtyp == 1911, (rtyp, rlen)
+            r1911 = rdat.view(_record_dtype(rtyp, rlen))
+            flag, outset, *_ = r1911.item()
+
+            if flag == 0:
                 outelm = r1911["out_element"].item()
 
                 logger.debug(
@@ -493,12 +496,12 @@ class AbqFil:
                         assert np.all(r[k] == r[k][0]), (istep, k)
                 logger.debug("data block: done")
                 yield StepDataBlockElement(
-                    flag=outtyp, set=outset, eltype=outelm, data=r
+                    flag=flag, set=outset, eltype=outelm, data=r
                 )
             else:
-                logger.error("Not implemented: element output flag %d", outtyp)
+                logger.error("Not implemented: element output flag %d", flag)
                 # skip to end of data block
                 pos, rtyp, rlen, rdat = stream.send((1911, 2001))
-                yield StepDataBlock(flag=outtyp, set=outset)
+                yield StepDataBlock(flag=flag, set=outset)
 
         return
