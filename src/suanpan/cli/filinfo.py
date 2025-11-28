@@ -4,6 +4,7 @@
 
 import argparse
 import sys
+from typing import Any
 
 try:
     import yaml
@@ -14,7 +15,7 @@ except ImportError:
     )
     sys.exit(2)
 
-from suanpan.abqfil import AbqFil
+from suanpan.abqfil import AbqFil, StepDataBlock, StepDataBlockElement
 
 b2str = AbqFil.b2str
 
@@ -43,7 +44,7 @@ def main() -> None:
             "path": abq.path,
             "version": b2str(abq.info["ver"]),
             "date": f"{b2str(abq.info['date'])} {b2str(abq.info['time'])}",
-            "heading": b2str(abq.heading),
+            "heading": b2str(abq.heading) or None,
             "nodes": abq.info["nnod"].item(),
             "elements": {b2str(v["eltyp"][0]): len(v) for v in abq.elm}
             | {"total": abq.info["nelm"].item()},
@@ -52,7 +53,7 @@ def main() -> None:
                     "step": s["step"].item(),
                     "increment": s["incr"].item(),
                     "time": s["ttime"].item(),
-                    "subheading": b2str(s["subheading"]),
+                    "subheading": b2str(s["subheading"]) or None,
                 }
                 for s in abq.step
             ],
@@ -60,21 +61,27 @@ def main() -> None:
 
         if args.verbose:
             for i, frame_info in enumerate(info["frames"]):
+                data = frame_info["data"] = []
                 for db in abq.get_step(i):
-                    frame_info.setdefault("data", []).append(
-                        {
-                            "flag": db.flag,
-                            "eltype": b2str(db.eltype),
-                            "elset": b2str(abq.label.get(db.set, db.set))
-                            or None,
-                            "location": db.data["loc"][0].item(),
-                            "records": [
-                                r
-                                for r in db.data.dtype.names
-                                if r.startswith("R")
-                            ],
-                        }
-                    )
+                    db_info: dict[str, Any] = {
+                        "flag": db.flag,
+                        "set": b2str(abq.label.get(db.set, db.set)) or None,
+                    }
+                    match db:
+                        case StepDataBlock(flag=0):
+                            assert isinstance(db, StepDataBlockElement)
+                            db_info |= {
+                                "eltype": b2str(db.eltype),
+                                "location": db.data["loc"][0].item(),
+                                "records": [
+                                    r
+                                    for r in db.data.dtype.names
+                                    if r.startswith("R")
+                                ],
+                            }
+                        case _:
+                            pass
+                    data.append(db_info)
 
         print(
             yaml.safe_dump(
