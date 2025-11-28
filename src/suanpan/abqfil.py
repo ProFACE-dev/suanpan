@@ -381,12 +381,7 @@ class AbqFil:
         # 2000 - inc start
         # <repeat (0 or more times)>
         #    1911 - output request
-        #    <repeat (0 or more times)>
-        #        1 - element header | 101 - node header
-        #        <repeat>
-        #            XXX - output records
-        #        <end>
-        #    <end>
+        #    ... output data ...
         # <end>
         # 2001 - inc stop/padding
 
@@ -400,6 +395,7 @@ class AbqFil:
         assert (rtyp, rlen) == (2000, 23), (rtyp, rlen)
         pos, rtyp, rlen, rdat = next(stream)
 
+        logger.debug("Step data: %.1f MiB", data.nbytes / 1024**2)
         # iterate over 1911 records
         while True:
             if rtyp == 2001:
@@ -410,98 +406,133 @@ class AbqFil:
             flag, outset, *_ = r1911.item()
 
             if flag == 0:
-                outelm = r1911["out_element"].item()
-
-                logger.debug(
-                    "data block: elset '%s', eltype '%s'",
-                    self.b2str(outset),
-                    self.b2str(outelm),
-                )
-
-                pos, rtyp, rlen, rdat = next(stream)
-                if rtyp == 1911 or rtyp == 2001:
-                    logger.debug("data block: empty")
-                    continue
-
-                assert rtyp == 1, rtyp
-
-                # iterate over "columns" of first "row"
-                # meta-data of colums is stored in 'types':
-                # types is (rkey, offset, data length)
-                # data length is <record length> - <header length>
-                # where header is (rlen, rkey) thus of length 2
-
-                types = []
-                s_pos = pos
-                while True:
-                    pos, rtyp, rlen, rdat = next(stream)
-                    if rtyp == 1:
-                        break
-                    types.append((rtyp, pos - s_pos, rlen - 2))
-                types.append((-1, pos - s_pos, 0))  # sentinel
-                assert types[0][1] == 11  # lenght of rkey 1
-
-                # construct dtype for this output block
-                # record key: 1
-                dtdict: dict[str, Any] = {
-                    "names": [
-                        "num",
-                        "ipnum",
-                        "spnum",
-                        "loc",
-                        "rebarname",
-                        "ndi",
-                        "nshr",
-                        "ndir",
-                        "nsfc",
-                    ],
-                    "formats": [
-                        "i4",
-                        "i4",
-                        "i4",
-                        "i4",
-                        "S8",
-                        "i4",
-                        "i4",
-                        "i4",
-                        "i4",
-                    ],
-                    "itemsize": 8 * types[-1][1],
-                    "offsets": [16, 24, 32, 40, 48, 56, 64, 72, 80],
-                }
-
-                assert dtdict["itemsize"] == 8 * (pos - s_pos)
-
-                for k, o, s in types[:-1]:
-                    dtdict["names"].append(f"R{k:d}")
-                    dtdict["formats"].append(f"({s:d},)f8")
-                    dtdict["offsets"].append(16 + o * 8)
-
-                dt = np.dtype(dtdict)  # type: ignore[call-overload]
-                logger.debug("data block: %s", dt.names)
-
-                # skip to last data record
-                ## FIXME: most of decoding time is spent here!
-                logger.debug("data block: iterating to find end record")
-                pos, rtyp, rlen, rdat = stream.send((1911, 2001))
-
-                # get data
-                logger.debug("data block: getting data")
-                r = data.flat[s_pos:pos].view(dt)
-                logger.debug("data block loc: %s", np.unique(r["loc"]))
-
-                assert _issorted(r["num"])
-                if __debug__:
-                    for k in ["loc", "ndi", "nshr", "ndir", "nsfc"]:
-                        assert np.all(r[k] == r[k][0]), (istep, k)
-                logger.debug("data block: done")
-                yield StepDataBlockElement(
-                    flag=flag, set=outset, eltype=outelm, data=r
+                (pos, rtyp, rlen, rdat), step_data = self._flag0(
+                    r1911=r1911, data=data, stream=stream
                 )
             else:
                 logger.error("Not implemented: element output flag %d", flag)
                 # skip to end of data block
                 pos, rtyp, rlen, rdat = stream.send((1911, 2001))
-                yield StepDataBlock(flag=flag, set=outset)
+                step_data = StepDataBlock(flag=flag, set=outset)
+
+            logger.debug("Step output request done (%.2f)", pos / data.size)
+            if step_data is not None:
+                yield step_data
 
         return
+
+    def _flag0(
+        self, *, r1911: npt.NDArray, data: Any, stream: Any
+    ) -> tuple[
+        tuple[np.uint32, np.uint32, np.uint32, npt.NDArray],
+        StepDataBlock | None,
+    ]:
+        """read element output"""
+
+        # <repeat (0 or more times)>
+        #   1 - element header
+        #   XXX - output record
+        #   YYY - output record
+        #   ...
+        # <end>
+
+        flag, outset, outelm = r1911.item()
+        assert flag == 0
+
+        logger.debug(
+            "Step output request [0]: elset '%s', eltype '%s'",
+            self.b2str(outset),
+            self.b2str(outelm),
+        )
+
+        pos, rtyp, rlen, rdat = next(stream)
+        if rtyp == 1911 or rtyp == 2001:
+            logger.debug("data block: empty")
+            return (pos, rtyp, rlen, rdat), None
+
+        assert rtyp == 1, rtyp
+
+        # iterate over "columns" of first "row"
+        # meta-data of colums is stored in 'types':
+        # types is (rkey, offset, data length)
+        # data length is <record length> - <header length>
+        # where header is (rlen, rkey) thus of length 2
+
+        types = []
+        s_pos = pos
+        while True:
+            pos, rtyp, rlen, rdat = next(stream)
+            if rtyp == 1:
+                break
+            types.append((rtyp, pos - s_pos, rlen - 2))
+        types.append((-1, pos - s_pos, 0))  # sentinel
+        assert types[0][1] == 11  # lenght of rkey 1
+        assert types[-1][1] == pos - s_pos  # output request length
+
+        # construct dtype for this output block
+        # record key: 1
+        dtdict: dict[str, Any] = {
+            "names": [
+                "num",
+                "ipnum",
+                "spnum",
+                "loc",
+                "rebarname",
+                "ndi",
+                "nshr",
+                "ndir",
+                "nsfc",
+            ],
+            "formats": [
+                "i4",
+                "i4",
+                "i4",
+                "i4",
+                "S8",
+                "i4",
+                "i4",
+                "i4",
+                "i4",
+            ],
+            "offsets": [16, 24, 32, 40, 48, 56, 64, 72, 80],
+        }
+        # data records
+        for k, o, s in types[:-1]:
+            dtdict["names"].append(f"R{k:d}")
+            dtdict["formats"].append(f"({s:d},)f8")
+            dtdict["offsets"].append((2 + o) * ftnfil.AWL)
+        # make dtype
+        dt = np.dtype(dtdict)  # type: ignore[call-overload]
+        assert dt.itemsize == ftnfil.AWL * (pos - s_pos)
+        logger.debug("data block: %s", dt.names)
+
+        # skip to last data record
+        ## FIXME: most of decoding time is spent here!
+        logger.debug("data block: iterating to find end record")
+        pos, rtyp, rlen, rdat = stream.send((1911, 2001))
+
+        # get data
+        logger.debug("data block: getting data")
+        r = data.flat[s_pos:pos].view(dt)
+
+        assert _issorted(r["num"])
+        if __debug__:
+            for k in ["loc", "ndi", "nshr", "ndir", "nsfc"]:
+                assert np.all(r[k] == r[k][0]), f"inhomogeneous {k}"
+        logger.debug(
+            "data block: %s",
+            list(
+                zip(
+                    ["loc", "ndi", "nshr", "ndir", "nsfc"],
+                    r[["loc", "ndi", "nshr", "ndir", "nsfc"]][0].item(),
+                    strict=True,
+                )
+            ),
+        )
+
+        _ret = (
+            (pos, rtyp, rlen, rdat),
+            StepDataBlockElement(flag=flag, set=outset, eltype=outelm, data=r),
+        )
+
+        return _ret
