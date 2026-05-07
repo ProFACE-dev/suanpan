@@ -18,7 +18,7 @@ repos:
     -   id: check-yaml
     -   id: check-toml
 -   repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.14.2
+    rev: v0.15.12
     hooks:
     -   id: ruff-check
     -   id: ruff-format
@@ -26,3 +26,7 @@ repos:
     rev: v6.2.0
     hooks:
     -   id: reuse-lint-file
+-   repo: https://github.com/python-jsonschema/check-jsonschema
+    rev: 0.37.2
+    hooks:
+    -   id: check-github-workflows
