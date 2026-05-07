@@ -8,11 +8,16 @@ dynamic = ["version"]
 description = "Python interface to Abaqus .fil files"
 classifiers = [
     "Development Status :: 3 - Alpha",
-    "Environment :: Other Environment",
     "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
     "Programming Language :: Python",
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
     "Programming Language :: Python :: 3.10",
+    "Topic :: Scientific/Engineering",
+    "Topic :: Software Development :: Libraries :: Python Modules",
 ]
 readme = "README.md"
 authors = [
@@ -21,7 +26,7 @@ authors = [
 requires-python = ">=3.10"
 dependencies = ["numpy>=1.21.3"]
 license = "MIT"
-license-files = ["LICENCES/MIT.txt"]
+license-files = ["LICENSES/MIT.txt"]
 
 [project.scripts]
 filinfo = "suanpan.cli.filinfo:main"
