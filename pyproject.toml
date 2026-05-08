@@ -24,7 +24,7 @@ authors = [
     { name = "Stefano Miccoli", email = "stefano.miccoli@polimi.it" }
 ]
 requires-python = ">=3.10"
-dependencies = ["numpy>=1.21.3"]
+dependencies = ["numpy>=2.0.0"]
 license = "MIT"
 license-files = ["LICENSES/MIT.txt"]
 
@@ -40,10 +40,16 @@ build-backend = "hatchling.build"
 
 [dependency-groups]
 dev = [
-    "coverage>=7.11.3",
-    "mypy>=1.18.2",
-    "types-pyyaml>=6.0.12.20250915",
+    "coverage>=7.13.5",
+    "mypy>=2.0.0",
+    "types-pyyaml>=6.0.12.20260508",
 ]
+
+#
+# uv
+#
+[tool.uv]
+resolution = "lowest-direct"
 
 #
 # hatch
