@@ -50,6 +50,10 @@ dev = [
 #
 [tool.uv]
 resolution = "lowest-direct"
+cache-keys = [
+    { file = "pyproject.toml" },
+    { git = { commit = true, tags = true } },
+]
 
 #
 # hatch
