@@ -223,10 +223,28 @@ class AbqFil:
                 elmdictetype.setdefault(eltyp, []).append(mesh_comp)
 
         # fuse all homogeneous mesh components
-        self.elm: list[np.ndarray] = [
-            elements[0] if len(elements) == 1 else np.concatenate(elements)
-            for elements in elmdictetype.values()
-        ]
+        self.elm: list[np.ndarray] = []
+        for eltype, elements in elmdictetype.items():
+            try:
+                np.result_type(*elements)
+            except np.exceptions.DTypePromotionError as exc:
+                assert (
+                    str(exc)
+                    == "invalid type promotion with subarray datatypes "
+                    "(shape mismatch)."
+                )
+                fusable = False
+            else:
+                fusable = True
+
+            if len(elements) == 1:
+                assert fusable is True
+                self.elm.append(elements[0])
+            elif fusable:
+                self.elm.append(np.concatenate(elements))
+            else:
+                self.elm.extend(elements)
+            del elements
         del elmdictetype
 
         # final check, mostly for debugging
