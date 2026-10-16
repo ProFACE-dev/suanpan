@@ -84,10 +84,16 @@ def _record_dtype(rtyp: int, rlen: int) -> np.dtype:
                 *((f"msurf{i + 1}", "S8") for i in range(dlen - 5)),
             ]
         case (1900, dlen) if dlen > 2:
+            # Element definitions
             items = [
                 ("elnum", "i8"),
                 ("eltyp", "S8"),
                 ("ninc", ("i8", dlen - 2)),
+            ]
+        case (1990, dlen) if dlen > 0:
+            # Element definition continuation
+            items = [
+                ("ninc", ("i8", dlen)),
             ]
         case (1901, dlen) if dlen > 1:
             items = [
@@ -184,6 +190,28 @@ class AbqFil:
             mesh = ftnfil.datablock(data, s_pos, pos, s_rlen).view(
                 _record_dtype(s_rtyp, s_rlen)
             )
+
+            # read continuation records
+            ninc_cont: list[np.ndarray] = []
+            while rtyp == 1990:
+                ninc_cont.append(
+                    rdat.view(_record_dtype(rtyp, rlen))[0]["ninc"]
+                )
+                pos, rtyp, rlen, rdat = next(stream)
+
+            if ninc_cont:
+                assert len(mesh) == 1
+                elnum, eltyp, ninc_0 = mesh[0]
+                ninc = np.concatenate((ninc_0, *ninc_cont))
+                dtype = np.dtype(
+                    [
+                        ("elnum", mesh.dtype["elnum"]),
+                        ("eltyp", mesh.dtype["eltyp"]),
+                        ("ninc", ninc.dtype, ninc.shape),
+                    ]
+                )
+                mesh = np.array((elnum, eltyp, ninc), dtype=dtype).reshape((1,))
+
             # usually len(np.unique(mesh["eltyp"]) == 1, but sometimes
             # we have consecutive element blocks with the same number
             # of nodes, i.e. same rlen, which is the block boundary for
@@ -193,18 +221,6 @@ class AbqFil:
                 mesh_comp = mesh[mesh["eltyp"] == eltyp]
                 assert _issorted_strict(mesh_comp["elnum"])
                 elmdictetype.setdefault(eltyp, []).append(mesh_comp)
-
-            ## FIXME: 1990 record handling not tested!
-            while rtyp == 1990:  # continuation record
-                assert len(elmdictetype[eltyp][-1]) == 1
-                elnum, _, ninc = elmdictetype[eltyp][-1][0]
-                assert _ == eltyp
-                ninc = np.append(ninc, rdat.view("i8"))
-                elmdictetype[eltyp][-1] = np.array(
-                    [(elnum, eltyp, ninc)],
-                    dtype=_record_dtype(1900, len(ninc) + 2),
-                )
-                pos, rtyp, rlen, rdat = next(stream)
 
         # fuse all homogeneous mesh components
         self.elm: list[np.ndarray] = [
@@ -224,7 +240,7 @@ class AbqFil:
                     "Element numbers are not consecutive: %s",
                     self.b2str(v["eltyp"][0]),
                 )
-        assert nelm_total == self.info["nelm"]
+        assert nelm_total == self.info["nelm"], (nelm_total, self.info["nelm"])
 
         # 1901: build nodal coordinates
         logger.debug("Collect node data (%.2f)", pos / data.size)
