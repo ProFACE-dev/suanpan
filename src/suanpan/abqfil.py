@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: 2025 Stefano Miccoli <stefano.miccoli@polimi.it>
+# SPDX-FileCopyrightText: 2025, 2026 Stefano Miccoli <stefano.miccoli@polimi.it>
 #
 # SPDX-License-Identifier: MIT
 
@@ -173,28 +173,34 @@ class AbqFil:
         # 1900, 1990: build element incidences
         assert rtyp == 1900, (pos, rtyp, rlen)
         logger.debug("Collect elm data (%.2f)", pos / data.size)
-        elm: dict[bytes, list[np.ndarray]] = {}
+        # setup dict from element type to fil data blocks:
+        elmdictetype: dict[bytes, list[np.ndarray]] = {}
         while rtyp == 1900:
+            # find mesh block boundary, save start position.
+            # Block boundary is given by different (rtyp, rlen)
             s_pos, s_rtyp, s_rlen = pos, rtyp, rlen
             pos, rtyp, rlen, rdat = stream.send(())
+            # read multiple records of data block
             mesh = ftnfil.datablock(data, s_pos, pos, s_rlen).view(
                 _record_dtype(s_rtyp, s_rlen)
             )
             # usually len(np.unique(mesh["eltyp"]) == 1, but sometimes
             # we have consecutive element blocks with the same number
-            # of nodes, i.e. same rlen.
+            # of nodes, i.e. same rlen, which is the block boundary for
+            # stream.send(()). Here we need to find unique element types,
+            # which is possible only after decoding raw data block
             for eltyp in np.unique(mesh["eltyp"]):
                 mesh_comp = mesh[mesh["eltyp"] == eltyp]
                 assert _issorted_strict(mesh_comp["elnum"])
-                elm.setdefault(eltyp, []).append(mesh_comp)
+                elmdictetype.setdefault(eltyp, []).append(mesh_comp)
 
             ## FIXME: 1990 record handling not tested!
             while rtyp == 1990:  # continuation record
-                assert len(elm[eltyp][-1]) == 1
-                elnum, _, ninc = elm[eltyp][-1][0]
+                assert len(elmdictetype[eltyp][-1]) == 1
+                elnum, _, ninc = elmdictetype[eltyp][-1][0]
                 assert _ == eltyp
                 ninc = np.append(ninc, rdat.view("i8"))
-                elm[eltyp][-1] = np.array(
+                elmdictetype[eltyp][-1] = np.array(
                     [(elnum, eltyp, ninc)],
                     dtype=_record_dtype(1900, len(ninc) + 2),
                 )
@@ -202,9 +208,12 @@ class AbqFil:
 
         # fuse all homogeneous mesh components
         self.elm: list[np.ndarray] = [
-            np.concat(elm.pop(eltyp)) for eltyp in list(elm)
+            elements[0] if len(elements) == 1 else np.concatenate(elements)
+            for elements in elmdictetype.values()
         ]
-        assert elm == {}
+        del elmdictetype
+
+        # final check, mostly for debugging
         nelm_total = 0
         for v in self.elm:
             assert np.all(v["eltyp"] == v["eltyp"][0])
