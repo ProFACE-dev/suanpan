@@ -176,15 +176,19 @@ class AbqFil:
         # setup dict from element type to fil data blocks:
         elmdictetype: dict[bytes, list[np.ndarray]] = {}
         while rtyp == 1900:
+            # find mesh block boundary, save start position.
+            # Block boundary is given by different (rtyp, rlen)
             s_pos, s_rtyp, s_rlen = pos, rtyp, rlen
             pos, rtyp, rlen, rdat = stream.send(())
+            # read multiple records of data block
             mesh = ftnfil.datablock(data, s_pos, pos, s_rlen).view(
                 _record_dtype(s_rtyp, s_rlen)
             )
-            # usually len(np.unique(mesh["eltyp"]) == 1, but sometime
+            # usually len(np.unique(mesh["eltyp"]) == 1, but sometimes
             # we have consecutive element blocks with the same number
             # of nodes, i.e. same rlen, which is the block boundary for
-            # stream.send(()).
+            # stream.send(()). Here we need to find unique element types,
+            # which is possible only after decoding raw data block
             for eltyp in np.unique(mesh["eltyp"]):
                 mesh_comp = mesh[mesh["eltyp"] == eltyp]
                 assert _issorted_strict(mesh_comp["elnum"])
