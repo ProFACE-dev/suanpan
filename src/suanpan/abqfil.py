@@ -207,15 +207,11 @@ class AbqFil:
                 pos, rtyp, rlen, rdat = next(stream)
 
         # fuse all homogeneous mesh components
-        self.elm: list[np.ndarray] = []
-        while elmdictetype:
-            _, elements = elmdictetype.popitem()
-            if len(elements) == 1:
-                self.elm.append(elements[0])
-            else:
-                self.elm.append(np.concatenate(elements))
-        elements = []  # drop reference to last list of element arrays
-        assert elmdictetype == {}
+        self.elm: list[np.ndarray] = [
+            elements[0] if len(elements) == 1 else np.concatenate(elements)
+            for elements in elmdictetype.values()
+        ]
+        del elmdictetype
 
         # final check, mostly for debugging
         nelm_total = 0
