@@ -72,6 +72,8 @@ def main() -> None:
                             assert isinstance(db, StepDataBlockElement)
                             db_info |= {
                                 "eltype": b2str(db.eltype),
+                                "len": len(db.data),
+                                "nbytes": db.data.nbytes,
                                 "location": db.data["loc"][0].item(),
                                 "records": [
                                     r
